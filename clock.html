@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clock</title>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      --green: #00ff88;
+      --green-dim: #00aa55;
+      --green-dark: #003322;
+      --green-glow: rgba(0, 255, 136, 0.15);
+      --bg: #060c08;
+    }
+
+    body {
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      overflow: hidden;
+      font-family: 'Share Tech Mono', 'Courier New', monospace;
+      color: var(--green);
+    }
+
+    /* Scanline overlay */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px,
+        transparent 3px,
+        rgba(0, 0, 0, 0.08) 3px,
+        rgba(0, 0, 0, 0.08) 4px
+      );
+      pointer-events: none;
+      z-index: 10;
+    }
+
+    /* Vignette */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.75) 100%);
+      pointer-events: none;
+      z-index: 9;
+    }
+
+    /* Animated background grid */
+    #grid-bg {
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,255,136,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,255,136,0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      animation: gridPulse 4s ease-in-out infinite alternate;
+      z-index: 0;
+    }
+
+    @keyframes gridPulse {
+      from { opacity: 0.5; }
+      to   { opacity: 1; }
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0;
+    }
+
+    /* Corner bracket decoration */
+    .frame {
+      position: relative;
+      padding: 2.5rem 3.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .frame::before, .frame::after,
+    .frame .corner-bl, .frame .corner-br {
+      content: '';
+      position: absolute;
+      width: 24px;
+      height: 24px;
+      border-color: var(--green-dim);
+      border-style: solid;
+    }
+    .frame::before  { top: 0; left: 0;  border-width: 2px 0 0 2px; }
+    .frame::after   { top: 0; right: 0; border-width: 2px 2px 0 0; }
+    .frame .corner-bl { bottom: 0; left: 0;  border-width: 0 0 2px 2px; }
+    .frame .corner-br { bottom: 0; right: 0; border-width: 0 2px 2px 0; }
+
+    /* Label bar */
+    #label {
+      font-size: 0.65rem;
+      letter-spacing: 0.45em;
+      color: var(--green-dim);
+      text-transform: uppercase;
+      margin-bottom: 1.2rem;
+      opacity: 0.7;
+    }
+
+    /* Main clock digits */
+    #clock {
+      font-size: 7.5rem;
+      letter-spacing: 0.05em;
+      line-height: 1;
+      color: var(--green);
+      text-shadow:
+        0 0 8px var(--green),
+        0 0 20px var(--green),
+        0 0 50px rgba(0, 255, 136, 0.5);
+      position: relative;
+      transition: text-shadow 0.1s;
+      cursor: default;
+    }
+
+    /* Blinking colon */
+    .colon {
+      display: inline-block;
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.15; }
+    }
+
+    /* Date row */
+    #date {
+      margin-top: 1.2rem;
+      font-size: 0.9rem;
+      letter-spacing: 0.35em;
+      color: var(--green-dim);
+      text-transform: uppercase;
+    }
+
+    /* Divider */
+    .divider {
+      width: 100%;
+      height: 1px;
+      background: linear-gradient(to right, transparent, var(--green-dim), transparent);
+      margin: 1.4rem 0;
+      opacity: 0.4;
+    }
+
+    /* Progress bar — seconds */
+    #progress-wrap {
+      width: 320px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.35rem;
+    }
+
+    #progress-label {
+      font-size: 0.6rem;
+      letter-spacing: 0.3em;
+      color: var(--green-dim);
+      opacity: 0.6;
+      text-transform: uppercase;
+    }
+
+    #progress-bar-bg {
+      width: 100%;
+      height: 3px;
+      background: rgba(0,255,136,0.1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    #progress-bar-fill {
+      height: 100%;
+      background: var(--green);
+      box-shadow: 0 0 8px var(--green);
+      width: 0%;
+      transition: width 0.5s linear;
+    }
+
+    /* Status / countdown */
+    #status {
+      margin-top: 1.5rem;
+      font-size: 0.75rem;
+      letter-spacing: 0.2em;
+      color: var(--green-dim);
+      opacity: 0.65;
+    }
+
+    /* Test button */
+    #beep-btn {
+      margin-top: 1.8rem;
+      padding: 0.55rem 2rem;
+      background: transparent;
+      border: 1px solid rgba(0, 255, 136, 0.35);
+      color: var(--green-dim);
+      font-family: inherit;
+      font-size: 0.7rem;
+      letter-spacing: 0.3em;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all 0.2s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    #beep-btn::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: var(--green-glow);
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    #beep-btn:hover::before { opacity: 1; }
+    #beep-btn:hover {
+      border-color: var(--green);
+      color: var(--green);
+      box-shadow: 0 0 12px rgba(0,255,136,0.2);
+    }
+
+    #beep-btn:active {
+      transform: scale(0.97);
+    }
+
+    /* Hour flash */
+    .flash {
+      animation: flash 1.2s ease-out forwards;
+    }
+
+    @keyframes flash {
+      0%   { color: #ffffff; text-shadow: 0 0 20px #fff, 0 0 60px var(--green), 0 0 100px var(--green); }
+      30%  { color: var(--green); text-shadow: 0 0 30px var(--green), 0 0 70px var(--green); }
+      100% { color: var(--green); text-shadow: 0 0 8px var(--green), 0 0 20px var(--green), 0 0 50px rgba(0,255,136,0.5); }
+    }
+
+    /* Particles canvas */
+    #particles {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="grid-bg"></div>
+  <canvas id="particles"></canvas>
+
+  <div class="container">
+    <div class="frame">
+      <span class="corner-bl"></span>
+      <span class="corner-br"></span>
+
+      <div id="label">// system time</div>
+
+      <div id="clock">
+        <span id="hh">00</span><span class="colon">:</span><span id="mm">00</span><span class="colon">:</span><span id="ss">00</span>
+      </div>
+
+      <div id="date"></div>
+
+      <div class="divider"></div>
+
+      <div id="progress-wrap">
+        <div id="progress-label">minute progress</div>
+        <div id="progress-bar-bg">
+          <div id="progress-bar-fill"></div>
+        </div>
+      </div>
+
+      <div id="status">initializing...</div>
+      <button id="beep-btn" onclick="testBeep()">[ test beep ]</button>
+    </div>
+  </div>
+
+  <script>
+    let audioCtx = null;
+    let lastHour = -1;
+
+    // --- Particle system ---
+    const canvas = document.getElementById('particles');
+    const ctx2d = canvas.getContext('2d');
+    let particles = [];
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    function spawnParticles(count) {
+      for (let i = 0; i < count; i++) {
+        particles.push({
+          x: window.innerWidth / 2 + (Math.random() - 0.5) * 300,
+          y: window.innerHeight / 2 + (Math.random() - 0.5) * 100,
+          vx: (Math.random() - 0.5) * 2,
+          vy: -(Math.random() * 2 + 0.5),
+          life: 1,
+          decay: Math.random() * 0.015 + 0.008,
+          size: Math.random() * 2 + 1
+        });
+      }
+    }
+
+    function animateParticles() {
+      ctx2d.clearRect(0, 0, canvas.width, canvas.height);
+      particles = particles.filter(p => p.life > 0);
+      for (const p of particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.life -= p.decay;
+        ctx2d.beginPath();
+        ctx2d.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+        ctx2d.fillStyle = `rgba(0, 255, 136, ${p.life * 0.6})`;
+        ctx2d.fill();
+      }
+      requestAnimationFrame(animateParticles);
+    }
+    animateParticles();
+
+    // --- Audio ---
+    function getAudioCtx() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      return audioCtx;
+    }
+
+    function beep(times) {
+      const ctx = getAudioCtx();
+      for (let i = 0; i < times; i++) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, ctx.currentTime + i * 0.45);
+
+        gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.45);
+        gain.gain.linearRampToValueAtTime(0.45, ctx.currentTime + i * 0.45 + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.45 + 0.32);
+
+        osc.start(ctx.currentTime + i * 0.45);
+        osc.stop(ctx.currentTime + i * 0.45 + 0.38);
+      }
+    }
+
+    function testBeep() { beep(1); }
+
+    // --- Clock ---
+    function updateClock() {
+      const now = new Date();
+      const h = now.getHours();
+      const m = now.getMinutes();
+      const s = now.getSeconds();
+
+      document.getElementById('hh').textContent = String(h).padStart(2, '0');
+      document.getElementById('mm').textContent = String(m).padStart(2, '0');
+      document.getElementById('ss').textContent = String(s).padStart(2, '0');
+
+      const days   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      document.getElementById('date').textContent =
+        `${days[now.getDay()]}  //  ${months[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
+
+      // Minute progress bar
+      document.getElementById('progress-bar-fill').style.width = (s / 59 * 100) + '%';
+
+      // Countdown
+      const minsLeft = 59 - m;
+      const secsLeft = 59 - s;
+      document.getElementById('status').textContent =
+        `next chime in ${String(minsLeft).padStart(2,'0')}m ${String(secsLeft).padStart(2,'0')}s`;
+
+      // On the hour
+      if (m === 0 && s === 0 && h !== lastHour) {
+        lastHour = h;
+        const beepCount = h % 12 || 12;
+        beep(beepCount);
+
+        // Flash
+        const clockEl = document.getElementById('clock');
+        clockEl.classList.remove('flash');
+        void clockEl.offsetWidth;
+        clockEl.classList.add('flash');
+        clockEl.addEventListener('animationend', () => clockEl.classList.remove('flash'), { once: true });
+
+        // Particles
+        spawnParticles(60);
+      }
+    }
+
+    updateClock();
+    setInterval(updateClock, 1000);
+  </script>
+
+</body>
+</html>
