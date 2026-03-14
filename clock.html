@@ -300,7 +300,7 @@
 
   <script>
     let audioCtx = null;
-    let lastHour = -1;
+    let lastHour = new Date().getHours(); // init to current hour to avoid beeping on load
 
     // --- Particle system ---
     const canvas = document.getElementById('particles');
@@ -399,8 +399,8 @@
       document.getElementById('status').textContent =
         `next chime in ${String(minsLeft).padStart(2,'0')}m ${String(secsLeft).padStart(2,'0')}s`;
 
-      // On the hour
-      if (m === 0 && s === 0 && h !== lastHour) {
+      // On the hour — just check if the hour changed (avoids setInterval drift missing s===0)
+      if (h !== lastHour) {
         lastHour = h;
         const beepCount = h % 12 || 12;
         beep(beepCount);
